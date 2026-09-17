@@ -277,6 +277,26 @@ const makeClusterBlobPoints = (width, height, seed = 0) => {
   }));
 };
 
+const makeRoundedBlobPath = (points = []) => {
+  if (!points.length) return '';
+  if (points.length < 3) {
+    return `M ${points.map(point => `${point.x} ${point.y}`).join(' L ')} Z`;
+  }
+  const midPoint = (a, b) => ({
+    x: Math.round((a.x + b.x) / 2),
+    y: Math.round((a.y + b.y) / 2),
+  });
+  const last = points[points.length - 1];
+  const first = points[0];
+  const start = midPoint(last, first);
+  const segments = points.map((point, index) => {
+    const next = points[(index + 1) % points.length];
+    const mid = midPoint(point, next);
+    return `Q ${point.x} ${point.y} ${mid.x} ${mid.y}`;
+  });
+  return [`M ${start.x} ${start.y}`, ...segments, 'Z'].join(' ');
+};
+
 const getAreaForCluster = (items, id, label) => {
   const bounds = getVisibleBounds(items);
   const seed = String(id || label || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -2306,7 +2326,7 @@ export default function Canvas() {
             const points = Array.isArray(area.points) && area.points.length
               ? area.points
               : makeClusterBlobPoints(area.width, area.height, String(area.id || '').length);
-            const pointText = points.map(point => `${point.x},${point.y}`).join(' ');
+            const blobPath = makeRoundedBlobPath(points);
             const labelFontSize = Math.round(clamp(13 / Math.max(scale, 0.35), 10, 20));
             const labelTop = clamp(18 / Math.max(scale, 0.35), 12, 34);
             const strokeWidth = clamp(1.5 / Math.max(scale, 0.35), 1.1, 3.2);
@@ -2337,12 +2357,14 @@ export default function Canvas() {
                     filter: 'drop-shadow(0 0 28px rgba(203,255,0,0.1))',
                   }}
                 >
-                  <polygon
-                    points={pointText}
+                  <path
+                    d={blobPath}
                     fill="rgba(203,255,0,0.035)"
                     stroke="rgba(203,255,0,0.78)"
                     strokeWidth={strokeWidth}
                     strokeDasharray={`${Math.max(7, 9 / scale)} ${Math.max(7, 11 / scale)}`}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
                   />
                 </svg>
                 <div style={{
