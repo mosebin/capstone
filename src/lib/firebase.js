@@ -126,10 +126,22 @@ function cleanIdeaForDatabase(idea = {}, index = 0) {
     id: idea.id ?? index + 1,
     title: String(idea.title || '').trim(),
     desc: String(idea.desc || description).trim(),
+    summary: String(idea.summary || idea.desc || description).trim(),
     description,
     tag: String(idea.tag || '').trim(),
     stars: Number(idea.stars) === 1 ? 1 : 0,
     keywords: Array.isArray(idea.keywords) ? idea.keywords : [],
+    evaluations: idea.evaluations || null,
+    metrics: idea.metrics || null,
+    position: idea.position || null,
+    axisPosition: idea.axisPosition || null,
+    wx: idea.wx,
+    wy: idea.wy,
+    aiGenerated: Boolean(idea.aiGenerated),
+    showAiBadge: Boolean(idea.showAiBadge),
+    aiBadgeType: idea.aiBadgeType || null,
+    generationSource: idea.generationSource || idea.source || null,
+    risk: idea.risk || null,
     pros,
     cons,
     features,
@@ -542,7 +554,11 @@ export async function saveGeneratedIdeasDocument(projectId, ideas) {
 export async function loadGeneratedIdeasDocument(projectId = getCurrentProjectId()) {
   if (!projectId) return [];
   const project = await loadProjectDocument(projectId);
-  const ideas = Array.isArray(project?.ideas) ? project.ideas : [];
+  const ideas = Array.isArray(project?.ideas)
+    ? project.ideas
+    : Array.isArray(project?.canvasWorkspace?.ideas)
+      ? project.canvasWorkspace.ideas
+      : [];
   if (projectId === getCurrentProjectId()) setCachedGeneratedIdeas(ideas);
   return ideas;
 }

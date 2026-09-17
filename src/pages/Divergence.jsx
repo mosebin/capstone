@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import { Dropdown } from './NewProject';
 import EditModal from '../components/editModal';
 import FixedBottomBar from '../components/fixedBottomBar';
@@ -51,52 +50,14 @@ const isWeakRegeneratedIdea = (generated, originalSignature) => {
     || FORMULAIC_REGENERATION_PATTERN.test(text);
 };
 
-function exportDivergenceExcel(ideas) {
-  const rows = ideas.map((idea) => ({
-    id: idea.id,
-    title: idea.title,
-    description: idea.desc || idea.summary,
-    tag: idea.tag,
-    stars: idea.stars || 0,
-    keywords: (idea.keywords || []).join(', '),
-    type: idea.showAiBadge ? 'AI 재생성' : '발산',
-    risk_level: idea.risk?.level || 'none',
-    risk_reasons: (idea.risk?.reasons || []).join(' / '),
-    ...Object.fromEntries(
-      Object.entries(idea.evaluations || {}).flatMap(([key, value]) => ([
-        [`evaluations.${key}.score`, value?.score],
-        [`evaluations.${key}.band`, value?.band],
-        [`evaluations.${key}.reasoning`, value?.reasoning],
-      ])),
-    ),
-  }));
-  const timestamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-
-  try {
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'ideas');
-    XLSX.writeFile(workbook, `neo-node-divergence-${timestamp}.xlsx`);
-    logEvent('divergence_export_excel', { count: rows.length, format: 'xlsx' });
-  } catch (error) {
-    console.warn('Excel export failed. Falling back to JSON.', error);
-    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `neo-node-divergence-${timestamp}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    logEvent('divergence_export_excel', { count: rows.length, format: 'json_fallback' });
-  }
-}
-
 /* ── 페이지 ─────────────────────────────────────────────────────────────── */
 export default function Divergence() {
   const [ideas,    setIdeas]    = useState([]);
   const [sort,     setSort]     = useState('가나다순');
   const [editingId,setEditingId]= useState(null);
   const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
   const [generationError, setGenerationError] = useState('');
   const [regeneratingIds, setRegeneratingIds] = useState(() => new Set());
   const ideaGridRef = useRef(null);
@@ -149,9 +110,13 @@ export default function Divergence() {
     const cancelledRef = { current: false };
 
     const loadIdeas = async () => {
-      const savedIdeas = await loadGeneratedIdeas();
+      const context = getProjectContext();
+      const savedIdeas = await loadGeneratedIdeas(context.projectId, { preferRemote: Boolean(context.projectId) });
       if (cancelledRef.current) return;
-      if (savedIdeas.length === FIXED_IDEA_COUNT && !shouldRefreshLocalFallbackIdeas(savedIdeas)) {
+      if (
+        savedIdeas.length
+        && (context.projectId || (savedIdeas.length === FIXED_IDEA_COUNT && !shouldRefreshLocalFallbackIdeas(savedIdeas)))
+      ) {
         setIdeas(normalizeIdeasForDisplay(savedIdeas));
         setLoading(false);
         return;
@@ -258,6 +223,23 @@ export default function Divergence() {
     navigate('/axis-modal');
   };
 
+  const handleSaveIdeas = async () => {
+    if (saving || loading || !ideas.length) return;
+    setSaving(true);
+    setSaveStatus('');
+    try {
+      await saveGeneratedIdeas(ideas);
+      logEvent('divergence_save_ideas', { count: ideas.length, project_id: getProjectContext().projectId || null });
+      setSaveStatus('저장되었습니다.');
+      window.setTimeout(() => setSaveStatus(''), 1800);
+    } catch (error) {
+      console.warn('Failed to save divergence ideas', error);
+      setSaveStatus('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const sorted = [...ideas].sort((a, b) => {
     if (sort === '즐겨찾기순') return (b.stars || 0) - (a.stars || 0);
     if (sort === '가나다순') return a.title.localeCompare(b.title);
@@ -292,15 +274,24 @@ export default function Divergence() {
           </div>
           <button
             type="button"
-            onClick={() => exportDivergenceExcel(sorted)}
+            disabled={saving || loading || !ideas.length}
+            onClick={handleSaveIdeas}
             style={{
               padding: '12px 18px', borderRadius: 10,
               background: '#CBFF00', color: '#111', border: 'none',
-              cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              cursor: saving || loading || !ideas.length ? 'default' : 'pointer',
+              fontWeight: 700,
+              fontSize: 13,
+              opacity: saving || loading || !ideas.length ? .6 : 1,
             }}
-          >엑셀로 다운로드</button>
+          >{saving ? '저장 중...' : '저장하기'}</button>
         </div>
       </div>
+      {saveStatus && (
+        <div style={{ color: saveStatus.includes('실패') ? '#ff8a8a' : '#CBFF00', fontSize: 13, fontWeight: 700, margin: '-18px 0 22px', textAlign: 'right' }}>
+          {saveStatus}
+        </div>
+      )}
 
       <div ref={ideaGridRef} style={{
         display: 'grid',

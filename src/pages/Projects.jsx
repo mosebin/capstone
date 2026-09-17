@@ -487,7 +487,7 @@ export default function Projects() {
 
       void Promise.all([
         loadProjectContext(projectId),
-        loadGeneratedIdeas(projectId),
+        loadGeneratedIdeas(projectId, { preferRemote: true }),
       ]).catch(error => {
         console.warn('Failed to refresh project after opening', error);
       });

@@ -304,13 +304,25 @@ export function seedProjectDataForRoute(context = {}, ideas = []) {
   return { context: nextContext, ideas: getCachedGeneratedIdeas() };
 }
 
-export async function loadGeneratedIdeas(projectId = getCurrentProjectId(), { remote = true } = {}) {
+export async function loadGeneratedIdeas(projectId = getCurrentProjectId(), { remote = true, preferRemote = false } = {}) {
   const localIdeas = readScopedLocalJson(
     GENERATED_IDEAS_STORAGE_KEY,
     projectId,
     null,
     LEGACY_GENERATED_IDEAS_STORAGE_PREFIX,
   );
+  if (projectId && remote && preferRemote) {
+    try {
+      const ideas = await loadGeneratedIdeasDocument(projectId);
+      const nextIdeas = Array.isArray(ideas) ? ideas : [];
+      if (nextIdeas.length) {
+        writeScopedLocalJson(GENERATED_IDEAS_STORAGE_KEY, nextIdeas, projectId);
+        return nextIdeas;
+      }
+    } catch (error) {
+      console.warn('Failed to load generated ideas from Firebase', error);
+    }
+  }
   if (Array.isArray(localIdeas) && localIdeas.length) {
     if (!projectId || projectId === getCurrentProjectId()) setCachedGeneratedIdeas(localIdeas);
     return localIdeas;
