@@ -1,0 +1,465 @@
+{
+  "meta": {
+    "framework": "Neo:Node 아이디어 평가 축 체계",
+    "version": "1.0",
+    "purpose": "AI(LLM)가 아이디어 노드를 정량적으로 평가하고 2D 캔버스에 배치하기 위한 평가 기준 정의. 모든 축은 '주관적 인상'이 아니라 '재현 가능한 등급 판단'을 목표로 함.",
+    "quantification_principle": {
+      "thesis": "완전한 물리적 측정은 불가능하지만, 같은 입력이면 누가/어떤 모델이 평가해도 같은 점수가 나오는 구조(재현 가능성)는 만들 수 있다. 이것이 연구에서 말하는 정량성이며 평가자에게 방어 가능한 근거가 된다.",
+      "three_devices": [
+        {
+          "name": "조작적 정의 (Operational Definition)",
+          "desc": "'유용한가?' 같은 모호한 질문을 셀 수 있거나 분류할 수 있는 하위 신호로 분해한다."
+        },
+        {
+          "name": "앵커 루브릭 (Anchored Rubric)",
+          "desc": "LOW(0)와 HIGH(100)가 구체적으로 어떤 상태인지 고정점을 명시하여 평가자의 자의성을 제거한다."
+        },
+        {
+          "name": "계산 가능한 프록시 (Computable Proxy)",
+          "desc": "가능한 경우 LLM의 직관 판단 대신 실제로 계산되는 값(임베딩 거리, 빈도, 비용 등급 등)으로 대체한다."
+        }
+      ],
+      "scoring_scale": "0-100. 각 축은 5개 밴드(0-20 / 21-40 / 41-60 / 61-80 / 81-100)로 분할되어 각 밴드에 구체적 상태 기술이 매핑된다. LLM은 자유 점수가 아니라 밴드를 먼저 선택한 뒤 밴드 내 위치를 미세 조정한다."
+    },
+    "axis_categories": {
+      "spatial": "2D 평면에 좌표로 배치되는 축. '높을수록 좋음' 단방향. 의미 있는 사분면을 만든다.",
+      "auxiliary": "다차원 탐색 축 기능으로 사용자가 공간 축과 교체해 끼우는 보조 축.",
+      "gate": "좌표가 아니라 색/플래그/필터로 노드 위에 오버레이되는 게이트 축. 외부 기준이 필요하거나 방향성이 단방향이 아닌 축."
+    }
+  },
+
+  "lenses": [
+    {
+      "id": "desirability",
+      "name_ko": "바람직성",
+      "question": "사용자가 원하는가 / 계속 쓰는가",
+      "source": "IDEO Three Lenses of Innovation",
+      "axes": ["usefulness", "stickiness"]
+    },
+    {
+      "id": "novelty",
+      "name_ko": "혁신성",
+      "question": "기존과 차별화되는가",
+      "source": "NUF Test의 N (Novelty)",
+      "axes": ["novelty"]
+    },
+    {
+      "id": "feasibility",
+      "name_ko": "실현가능성",
+      "question": "만들 수 있고 유지되는가",
+      "source": "IDEO Three Lenses of Innovation",
+      "axes": ["feasibility", "stability"]
+    },
+    {
+      "id": "viability",
+      "name_ko": "사업성",
+      "question": "지속·확대·전략적으로 타당한가",
+      "source": "IDEO Three Lenses of Innovation",
+      "axes": ["profitability", "scalability", "strategic_fit"]
+    },
+    {
+      "id": "risk_gate",
+      "name_ko": "리스크 게이트",
+      "question": "치명적 결격 사유가 없는가",
+      "source": "Risk Matrix (probability × severity)",
+      "axes": ["risk"]
+    }
+  ],
+
+  "axes": [
+    {
+      "id": "usefulness",
+      "name_ko": "유용성",
+      "name_en": "Usefulness",
+      "lens": "desirability",
+      "axis_type": "spatial",
+      "is_nuf_core": true,
+      "is_default_spatial": true,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "이 아이디어가 실제 문제 해결에 얼마나 도움이 되는지를 봅니다.",
+        "sub_signals": [
+          "문제 심각도(severity): 해결되지 않을 때 사용자가 겪는 고통의 강도",
+          "발생 빈도(frequency): 그 문제가 사용자에게 일어나는 주기",
+          "대상 규모(reach): 그 문제를 겪는 사용자의 수"
+        ]
+      },
+      "anchors": {
+        "low": "드물게 발생하고 강도가 약한 문제를 소수의 사용자에게만 해결한다.",
+        "high": "자주 발생하고 강도가 강한 문제를 다수의 사용자에게 해결한다."
+      },
+      "evaluation_question": "이 아이디어가 해결하는 사용자 페인 포인트는 얼마나 심각하고(severity), 얼마나 자주 발생하며(frequency), 얼마나 많은 사람에게(reach) 해당하는가? 세 신호의 곱으로 판단하라.",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "문제가 모호하거나 '있으면 좋은' 수준. 대상이 극소수." },
+        { "band": "21-40", "state": "약한 불편을 가끔 겪는 소규모 집단." },
+        { "band": "41-60", "state": "분명한 불편이지만 빈도/규모 중 하나가 제한적." },
+        { "band": "61-80", "state": "강한 페인을 자주 겪는 상당 규모의 사용자." },
+        { "band": "81-100", "state": "심각하고 빈번한 문제를 광범위한 사용자에게 해결. 명백한 필요." }
+      ],
+      "computable_proxy": null,
+      "logical_basis": {
+        "theory": "Severity × Frequency (UX 우선순위), RICE의 Reach × Impact",
+        "source": "Nielsen Norman Group UX prioritization; Intercom RICE scoring",
+        "rationale": "'사용자 가치'를 버리지 않고 셋으로 분해해 살려낸다. 가치 개념은 유지하되 점수는 직관이 아니라 세 신호의 곱으로 산출되어 재현성이 확보된다."
+      }
+    },
+    {
+      "id": "novelty",
+      "name_ko": "창의성·차별성",
+      "name_en": "Novelty / Differentiation",
+      "lens": "novelty",
+      "axis_type": "spatial",
+      "is_nuf_core": true,
+      "is_default_spatial": true,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "기존 방법과 비교해 얼마나 새롭고 다른 아이디어인지를 봅니다.",
+        "sub_signals": [
+          "기존 대안 밀도: 같은 문제를 푸는 기존 솔루션이 시장에 얼마나 많은가",
+          "결합 거리: 아이디어를 구성하는 개념들이 의미 공간에서 얼마나 떨어진 도메인에서 왔는가"
+        ]
+      },
+      "anchors": {
+        "low": "기존 대안이 다수 존재하고, 같은 도메인 내 익숙한 요소들의 결합이다.",
+        "high": "직접적인 기존 대안이 없고, 서로 먼 이종 도메인의 개념을 결합했다."
+      },
+      "evaluation_question": "이 아이디어와 동일한 문제를 푸는 기존 솔루션이 얼마나 흔한가? 그리고 아이디어를 구성하는 개념들은 서로 얼마나 먼 도메인에서 결합되었는가? 흔할수록·가까울수록 낮게, 희소할수록·멀수록 높게 평가하라.",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "이미 보편화된 솔루션. 동일 도메인 내 뻔한 조합." },
+        { "band": "21-40", "state": "기존 솔루션을 소폭 변형한 수준." },
+        { "band": "41-60", "state": "익숙한 요소이나 조합 방식에 약간의 신선함." },
+        { "band": "61-80", "state": "기존 대안이 드물거나, 인접 도메인 간 결합으로 새로운 시각 제시." },
+        { "band": "81-100", "state": "직접 대안이 사실상 없고, 먼 이종 도메인 결합으로 새 범주를 연다." }
+      ],
+      "computable_proxy": {
+        "name": "결합 거리 (Combination Distance)",
+        "method": "노드 임베딩 벡터 간 의미 거리(cosine distance) 계산. 화이트스페이스 탐지 로직과 동일한 계산을 재사용한다.",
+        "note": "이 축의 점수는 화이트스페이스 위치와 직접 연동된다 — 의미 거리가 먼 노드일수록 차별성↑이자 화이트스페이스 근접."
+      },
+      "logical_basis": {
+        "theory": "조합적 창의성(combinatorial creativity), 임베딩 의미 거리",
+        "source": "Margaret Boden, combinational creativity; embedding-space novelty metrics",
+        "rationale": "차별성은 '느낌'이 아니라 임베딩 공간에서 실제 계산되는 거리로 환산 가능하다. 화이트스페이스/넛지 로직과 동일한 계산이므로 제품 내 일관성도 확보된다."
+      }
+    },
+    {
+      "id": "feasibility",
+      "name_ko": "실행 가능성",
+      "name_en": "Feasibility",
+      "lens": "feasibility",
+      "axis_type": "spatial",
+      "is_nuf_core": true,
+      "is_default_spatial": true,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "현재 기술과 시간, 비용으로 실제 구현할 수 있는지를 봅니다.",
+        "sub_signals": [
+          "기술 성숙도(TRL): 핵심 기술이 상용 수준인가 미검증 연구 단계인가",
+          "자원 규모: 필요한 인력·자본의 크기",
+          "MVP 소요 기간: 최소 동작 버전까지의 시간",
+          "외부 의존 수: 통제 불가능한 외부 요소(허가, 파트너, 미성숙 기술)에 대한 의존"
+        ]
+      },
+      "anchors": {
+        "low": "존재하지 않는 기술 · 대규모 자원 · 장기 개발 · 다수의 외부 의존.",
+        "high": "상용화된 기술 · 소규모 자원 · 단기 개발 · 독립적으로 구현 가능."
+      },
+      "evaluation_question": "이 아이디어를 현재의 기술·예산·시간 안에서 구현할 수 있는가? 핵심 기술의 성숙도(TRL 1~9 척도로 환산), 필요 자원, MVP까지의 기간, 외부 의존 수를 종합하라.",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "핵심 기술이 미존재/연구 단계(TRL 1-3). 대규모 자원·장기 필요." },
+        { "band": "21-40", "state": "기술이 검증 초기(TRL 4-5). 상당한 자원과 시간 소요." },
+        { "band": "41-60", "state": "기술이 프로토타입 수준(TRL 6-7). 중간 규모 투자 필요." },
+        { "band": "61-80", "state": "기술이 거의 상용(TRL 8). 통제 가능한 자원으로 단기 구현." },
+        { "band": "81-100", "state": "상용 기술 조합(TRL 9). 소규모·단기·독립적으로 즉시 구현 가능." }
+      ],
+      "computable_proxy": {
+        "name": "TRL 등급",
+        "method": "핵심 기술을 NASA 9단계 기술성숙도(Technology Readiness Level)로 분류 후 점수 환산."
+      },
+      "logical_basis": {
+        "theory": "TRL (Technology Readiness Level, NASA 9단계)",
+        "source": "NASA Technology Readiness Level scale",
+        "rationale": "기술 성숙도를 등급으로 환산하는 검증된 국제 표준 척도. '구현 가능한가'라는 모호한 질문을 9단계 분류 문제로 바꿔 평가자 간 신뢰도를 확보한다."
+      }
+    },
+    {
+      "id": "scalability",
+      "name_ko": "확장성",
+      "name_en": "Scalability",
+      "lens": "viability",
+      "axis_type": "spatial",
+      "is_nuf_core": false,
+      "is_default_spatial": true,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "더 많은 사용자나 다른 시장으로 넓혀갈 수 있는지를 봅니다.",
+        "sub_signals": [
+          "한계비용: 사용자 1명 추가에 드는 추가 비용",
+          "인접 시장 확장성: 다른 시장/세그먼트로 확대 가능한가",
+          "네트워크 효과: 사용자가 늘수록 가치가 커지는 구조인가"
+        ]
+      },
+      "anchors": {
+        "low": "사용자에 비례해 비용이 선형 증가 · 단일 시장 한정 · 네트워크 효과 없음.",
+        "high": "한계비용이 0에 수렴 · 다중 시장 확장 가능 · 네트워크 효과 작동."
+      },
+      "evaluation_question": "단발성에 그치지 않고 지속적으로 확장될 수 있는가? 사용자가 늘 때 한계비용이 어떻게 변하는가, 인접 시장으로 확장 가능한가, 네트워크 효과가 있는가를 판단하라.",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "확장 시 비용이 사용자에 정비례. 단일 틈새 시장." },
+        { "band": "21-40", "state": "확장에 상당한 추가 자원 필요. 시장 확대 제한적." },
+        { "band": "41-60", "state": "부분적 규모의 경제. 일부 인접 시장 확장 가능." },
+        { "band": "61-80", "state": "낮은 한계비용. 다중 시장 또는 약한 네트워크 효과." },
+        { "band": "81-100", "state": "한계비용 0 수렴 + 강한 네트워크 효과로 가치가 자가 증식." }
+      ],
+      "computable_proxy": null,
+      "logical_basis": {
+        "theory": "한계비용 경제학 + 네트워크 효과(Metcalfe의 법칙)",
+        "source": "Marginal cost economics; Metcalfe's Law",
+        "rationale": "확장성을 '한계비용 곡선의 기울기'와 '네트워크 효과 유무'라는 경제학적 구조로 정의해 직관 대신 구조적 판단을 가능하게 한다."
+      }
+    },
+    {
+      "id": "stickiness",
+      "name_ko": "고착성",
+      "name_en": "Stickiness / Retention",
+      "lens": "desirability",
+      "axis_type": "auxiliary",
+      "is_nuf_core": false,
+      "is_default_spatial": false,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "사용자가 반복해서 계속 이용할 만한 이유가 있는지를 봅니다.",
+        "sub_signals": [
+          "재발 주기: 해당 니즈가 얼마나 자주 다시 발생하는가",
+          "전환 비용: 축적된 데이터·습관 때문에 떠나기 어려운 정도(lock-in)",
+          "가치 누적: 쓸수록 사용자에게 쌓이는 가치"
+        ]
+      },
+      "anchors": {
+        "low": "1회성 사용으로 끝남 · 전환 비용 없음 · 재방문 이유 없음.",
+        "high": "일/주 단위로 재발 · 높은 lock-in · 사용할수록 가치 축적."
+      },
+      "evaluation_question": "사용자가 서비스를 사용한 후 다시 돌아올 이유가 있는가? 문제가 재발하는 주기, 떠날 때의 전환 비용, 반복 사용 시 누적되는 가치를 판단하라.",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "한 번 쓰고 끝나는 1회성. 재방문 동기 없음." },
+        { "band": "21-40", "state": "드물게 재발. 전환 비용 거의 없음." },
+        { "band": "41-60", "state": "주기적 재발하나 대체 가능. 약한 습관 형성." },
+        { "band": "61-80", "state": "잦은 재발 + 데이터/습관 축적으로 전환 비용 발생." },
+        { "band": "81-100", "state": "일상적 재발 + 강한 lock-in. 쓸수록 떠나기 어려워짐." }
+      ],
+      "computable_proxy": null,
+      "logical_basis": {
+        "theory": "Hook 모델(투자→재방문 루프), 전환 비용 이론",
+        "source": "Nir Eyal, Hooked; switching cost theory",
+        "rationale": "재발 주기가 깔끔한 정량 앵커를 제공한다(1회성/월/주/일 단위로 등급화 가능). 바람직성 렌즈 안에서 유용성과 짝을 이뤄 '한 번의 가치'와 '지속 가치'를 분리 측정한다."
+      }
+    },
+    {
+      "id": "stability",
+      "name_ko": "안정성",
+      "name_en": "Stability / Operational Resilience",
+      "lens": "feasibility",
+      "axis_type": "auxiliary",
+      "is_nuf_core": false,
+      "is_default_spatial": false,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "문제가 생겨도 서비스가 안정적으로 운영될 수 있는지를 봅니다.",
+        "sub_signals": [
+          "운영 개입 수준: 상시 사람의 개입이 필요한가, 자동으로 굴러가는가",
+          "단일 실패점(SPOF): 하나가 멈추면 전체가 멈추는 지점의 수",
+          "외부 의존 안정성: 의존하는 외부 요소가 얼마나 신뢰할 수 있는가"
+        ]
+      },
+      "anchors": {
+        "low": "상시 수동 개입 필요 · SPOF 다수 · 불안정한 외부 의존.",
+        "high": "자동 운영 · SPOF 없음 · 안정적 외부 의존."
+      },
+      "evaluation_question": "운영 구조와 시스템이 안정적인가? 지속적으로 운영·관리가 가능한가? 상시 개입 필요성, 단일 실패점의 수, 외부 의존의 안정성을 판단하라. (실행가능성이 '한 번 만들 수 있나'라면 안정성은 '계속 굴러가나'를 본다.)",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "끊임없는 수동 개입 필요. 다수의 단일 실패점." },
+        { "band": "21-40", "state": "잦은 개입과 모니터링 필요. 취약한 외부 의존." },
+        { "band": "41-60", "state": "부분 자동화. 일부 SPOF 존재." },
+        { "band": "61-80", "state": "대부분 자동 운영. SPOF 최소화." },
+        { "band": "81-100", "state": "완전 자동 운영. SPOF 없음. 의존 요소 안정적." }
+      ],
+      "computable_proxy": null,
+      "logical_basis": {
+        "theory": "운영 회복탄력성(Operational Resilience), 단일 실패점(SPOF) 분석",
+        "source": "Reliability engineering — Single Point of Failure analysis",
+        "rationale": "실행가능성과 명확히 구분되는 축. 실행가능성은 구축 시점의 난이도, 안정성은 운영 지속성을 본다. SPOF 개수라는 셀 수 있는 신호로 정량화한다."
+      }
+    },
+    {
+      "id": "profitability",
+      "name_ko": "수익성",
+      "name_en": "Profitability",
+      "lens": "viability",
+      "axis_type": "gate",
+      "is_nuf_core": false,
+      "is_default_spatial": false,
+      "polarity": "higher_is_better",
+      "operational_definition": {
+        "summary": "과금 지점의 명확성, 지불 의향(WTP), 마진 구조로 분해한다.",
+        "sub_signals": [
+          "과금 지점 명확성: 어디서 돈을 받을지 분명한가",
+          "지불 의향(WTP): 사용자가 돈을 낼 의향이 필수재 수준인가 선택재 수준인가",
+          "마진 구조: 단위 경제(unit economics)가 양(+)인가"
+        ]
+      },
+      "anchors": {
+        "low": "과금 지점 불명확 · 낮은 지불 의향 · 마진 불투명.",
+        "high": "명확한 과금 지점 · 높은 지불 의향 · 양의 단위 마진."
+      },
+      "evaluation_question": "돈을 벌 수 있는 구조이며 우리 조직이 해야만 하는 일인가? 과금 지점이 명확한가, 사용자의 지불 의향은 어느 정도인가, 단위 경제는 성립하는가를 판단하라.",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "수익 모델 부재. 지불 의향 거의 없음." },
+        { "band": "21-40", "state": "수익 경로 불명확. 무료 기대가 강함." },
+        { "band": "41-60", "state": "수익 모델 가설은 있으나 마진 불확실." },
+        { "band": "61-80", "state": "명확한 과금 지점. 선택재 수준의 지불 의향." },
+        { "band": "81-100", "state": "명확한 과금 + 필수재 수준 지불 의향 + 양의 마진." }
+      ],
+      "computable_proxy": null,
+      "logical_basis": {
+        "theory": "유닛 이코노믹스(Unit Economics), 지불 의향(Willingness to Pay)",
+        "source": "Unit economics; WTP analysis",
+        "rationale": "게이트 축으로 분류한 이유: 동일 아이디어라도 조직/맥락에 따라 수익성 판단이 달라지므로 보편 좌표축으로 두기 어렵다. 도메인 필터로 켜고 끄는 것이 논리적으로 깔끔하다."
+      }
+    },
+    {
+      "id": "strategic_fit",
+      "name_ko": "전략적 일관성",
+      "name_en": "Strategic Fit",
+      "lens": "viability",
+      "axis_type": "gate",
+      "is_nuf_core": false,
+      "is_default_spatial": false,
+      "polarity": "higher_is_better",
+      "requires_external_context": true,
+      "operational_definition": {
+        "summary": "사용자/조직이 명시한 전략 축과의 일치 개수로 분해한다.",
+        "sub_signals": [
+          "전략 정렬 수: 명시된 전략 목표/지표 중 몇 개와 방향이 일치하는가",
+          "정체성 정합: 브랜드 정체성과 충돌하지 않는가"
+        ]
+      },
+      "anchors": {
+        "low": "명시된 전략 방향과 충돌한다.",
+        "high": "명시된 모든 전략 축과 정렬된다."
+      },
+      "evaluation_question": "브랜드의 정체성이나 목표 지표와 방향성이 일치하는가? 사용자가 설정한 전략 축 목록과 이 아이디어가 몇 개나 정렬되는지로 판단하라. (전략 축이 입력되지 않은 경우 이 축은 비활성화한다.)",
+      "scoring_rubric": [
+        { "band": "0-20", "state": "핵심 전략과 정면 충돌." },
+        { "band": "21-40", "state": "대부분의 전략 축과 어긋남." },
+        { "band": "41-60", "state": "일부만 정렬. 중립적." },
+        { "band": "61-80", "state": "다수의 전략 축과 정렬." },
+        { "band": "81-100", "state": "모든 전략 축과 강하게 정렬. 정체성 강화." }
+      ],
+      "computable_proxy": {
+        "name": "전략 정렬 개수",
+        "method": "사용자 입력 전략 축 리스트와 아이디어 속성 간 매칭 수를 카운트."
+      },
+      "logical_basis": {
+        "theory": "전략 정합성(Strategic Alignment)",
+        "source": "Strategic alignment frameworks",
+        "rationale": "외부 기준(조직 전략)이 반드시 필요한 축이므로 일반 사용 시 선택적으로만 활성화한다. 전략 축 입력이 있을 때만 '일치 개수'라는 객관적 카운트로 정량화된다."
+      }
+    },
+    {
+      "id": "risk",
+      "name_ko": "리스크",
+      "name_en": "Risk",
+      "lens": "risk_gate",
+      "axis_type": "gate",
+      "is_nuf_core": false,
+      "is_default_spatial": false,
+      "polarity": "lower_is_better",
+      "render_as": "flag_overlay",
+      "warning": "이 축은 절대 'LOW-HIGH 높을수록 좋음' 좌표축으로 올리지 않는다. 리스크가 높은 것이 좋은 것이 아니므로 노드 위에 색/경고 플래그로 오버레이한다.",
+      "operational_definition": {
+        "summary": "법적·윤리적·평판 리스크를 각각 발생 확률 × 심각도로 분해한다.",
+        "sub_signals": [
+          "법적 리스크: 규제·법규 위반 가능성",
+          "윤리적 리스크: 사회적·윤리적 문제 소지",
+          "평판 리스크: 부정적 경험을 줄 가능성",
+          "각 항목 = 발생 확률 × 심각도"
+        ]
+      },
+      "anchors": {
+        "low_risk": "법적·윤리적 문제가 없으며 부정적 경험 가능성이 낮음 (바람직한 상태).",
+        "high_risk": "심각한 법적·윤리적·평판 리스크가 높은 확률로 존재 (결격 사유)."
+      },
+      "evaluation_question": "법적·윤리적 문제가 없으며 부정적 경험을 줄 가능성은 낮은가? 각 리스크 유형을 발생 확률 × 심각도로 평가하고, 가장 높은 항목을 전체 리스크 레벨로 채택하라.",
+      "scoring_rubric": [
+        { "band": "none", "state": "식별된 리스크 없음. 플래그 없음." },
+        { "band": "low", "state": "경미한 리스크. 회색 플래그." },
+        { "band": "medium", "state": "관리 필요한 리스크. 황색(#FFB800) 플래그." },
+        { "band": "high", "state": "치명적 결격 사유. 적색 플래그 + 노드 강조." }
+      ],
+      "computable_proxy": {
+        "name": "리스크 매트릭스",
+        "method": "리스크 항목별 (발생확률 1-5) × (심각도 1-5) 점수 산출 후 최댓값 채택."
+      },
+      "logical_basis": {
+        "theory": "리스크 매트릭스(Probability × Severity)",
+        "source": "Risk assessment matrix (probability-impact)",
+        "rationale": "표준 리스크 평가 기법. 방향이 단방향이 아니고(높을수록 나쁨) 외부 좌표가 아니라 게이트이므로 사분면 배치에서 제외하고 플래그로 처리하는 것이 논리적으로 정당하다."
+      }
+    }
+  ],
+
+  "recommended_spatial_pairings": {
+    "description": "2D 캔버스에 올릴 X×Y 축 조합 추천. 의미 있는 사분면을 만드는 것은 축들의 '긴장 관계'다.",
+    "pairings": [
+      {
+        "x": "feasibility",
+        "y": "novelty",
+        "quadrants": { "high_high": "문샷(Moonshot)", "high_low": "퀵윈(Quick Win)", "low_high": "함정/장기과제", "low_low": "점진 개선" },
+        "rationale": "혁신관리의 고전 매트릭스. 차별성과 실현가능성의 긴장이 가장 풍부한 사분면을 만든다."
+      },
+      {
+        "x": "feasibility",
+        "y": "usefulness",
+        "quadrants": { "high_high": "최우선", "high_low": "여력 시", "low_high": "투자 검토", "low_low": "보류" },
+        "rationale": "제품 우선순위 매트릭스. 가치와 구현 난이도의 트레이드오프."
+      },
+      {
+        "x": "novelty",
+        "y": "usefulness",
+        "quadrants": { "high_high": "블루오션", "high_low": "신기하나 무용", "low_high": "레드오션", "low_low": "무의미" },
+        "rationale": "블루오션 탐색용. 차별성과 가치가 모두 높은 미개척 영역을 드러낸다."
+      }
+    ]
+  },
+
+  "llm_output_schema": {
+    "description": "LLM이 노드 1개를 평가할 때 반환해야 하는 JSON 구조.",
+    "schema": {
+      "node_id": "string",
+      "evaluations": {
+        "<axis_id>": {
+          "band": "string (해당 축의 rubric band 중 하나)",
+          "score": "number (0-100)",
+          "signals": "object (sub_signal별 근거 요약)",
+          "reasoning": "string (1-2문장, 점수 산출 근거)"
+        }
+      },
+      "risk": {
+        "level": "string (none | low | medium | high)",
+        "reasons": "string[] (식별된 리스크 항목)"
+      },
+      "position": {
+        "x_axis": "string (활성화된 X축 id)",
+        "y_axis": "string (활성화된 Y축 id)",
+        "x": "number (0-100)",
+        "y": "number (0-100)"
+      }
+    }
+  },
+
+  "prompt_template": {
+    "description": "GPT 등 백엔드 LLM에 전달할 프롬프트 템플릿. {axes_definitions}에 위 axes 배열의 활성 축들을, {idea}에 평가할 아이디어를 주입한다.",
+    "system": "당신은 Neo:Node의 아이디어 평가 엔진이다. 주어진 평가 축의 조작적 정의와 점수 밴드(rubric)를 엄격히 따라 아이디어를 평가한다. 절대 직관으로 점수를 매기지 말고, 반드시 (1) 먼저 적합한 밴드를 선택하고 (2) 밴드 내에서 위치를 미세 조정하는 2단계로 판단하라. 같은 아이디어를 다시 평가해도 동일한 점수가 나와야 한다(재현 가능성). 모든 출력은 지정된 JSON 스키마만 따르며, 그 외 텍스트나 마크다운을 포함하지 않는다.",
+    "user": "다음은 평가 축 정의다:\n{axes_definitions}\n\n다음 아이디어를 위 모든 활성 축에 대해 평가하라:\n{idea}\n\n현재 캔버스 X축: {x_axis}, Y축: {y_axis}\n\n각 축마다 밴드 선택 → 점수 산출 → 근거 1~2문장을 제시하고, 리스크는 플래그로 별도 처리하라. 지정된 JSON 스키마로만 응답하라."
+  }
+}

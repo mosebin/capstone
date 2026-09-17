@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /projects/{projectId} {
+      allow read, create, update, delete: if request.auth != null;
+
+      match /{document=**} {
+        allow read, create, update, delete: if request.auth != null;
+      }
+    }
+
+    match /Exihibition/{projectId} {
+      allow read, create, update, delete: if request.auth != null;
+
+      match /{document=**} {
+        allow read, create, update, delete: if request.auth != null;
+      }
+    }
+  }
+}
