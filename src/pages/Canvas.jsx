@@ -258,28 +258,51 @@ const getVisibleBounds = (items) => {
   };
 };
 
+const makeClusterBlobPoints = (width, height, seed = 0) => {
+  const nudge = (index, amount) => Math.sin(seed * 0.73 + index * 1.91) * amount;
+  const rawPoints = [
+    [0.08 + nudge(1, 0.025), 0.22 + nudge(2, 0.03)],
+    [0.26 + nudge(3, 0.035), 0.06 + nudge(4, 0.018)],
+    [0.58 + nudge(5, 0.035), 0.035 + nudge(6, 0.02)],
+    [0.92 + nudge(7, 0.025), 0.16 + nudge(8, 0.035)],
+    [0.985 + nudge(9, 0.012), 0.52 + nudge(10, 0.035)],
+    [0.86 + nudge(11, 0.035), 0.88 + nudge(12, 0.025)],
+    [0.48 + nudge(13, 0.035), 0.985 + nudge(14, 0.012)],
+    [0.12 + nudge(15, 0.03), 0.82 + nudge(16, 0.035)],
+    [0.025 + nudge(17, 0.012), 0.46 + nudge(18, 0.035)],
+  ];
+  return rawPoints.map(([x, y]) => ({
+    x: Math.round(clamp(x, 0.015, 0.985) * width),
+    y: Math.round(clamp(y, 0.015, 0.985) * height),
+  }));
+};
+
 const getAreaForCluster = (items, id, label) => {
   const bounds = getVisibleBounds(items);
-  const centerX = bounds.minX + bounds.width / 2;
-  const centerY = bounds.minY + bounds.height / 2;
-  const maxCornerDistance = Math.max(
-    0,
-    ...items.flatMap(item => ([
-      Math.hypot(item.wx - centerX, item.wy - centerY),
-      Math.hypot(item.wx + IDEA_CARD_W - centerX, item.wy - centerY),
-      Math.hypot(item.wx - centerX, item.wy + IDEA_CARD_H - centerY),
-      Math.hypot(item.wx + IDEA_CARD_W - centerX, item.wy + IDEA_CARD_H - centerY),
-    ])),
-  );
-  const diameter = clamp(maxCornerDistance * 2 + 140, 420, 1500);
+  const seed = String(id || label || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const paddingX = clamp(120 + items.length * 10, 132, 240);
+  const paddingY = clamp(96 + items.length * 8, 112, 220);
+  const paddedLeft = Math.max(0, bounds.minX - paddingX);
+  const paddedTop = Math.max(0, bounds.minY - paddingY);
+  const paddedRight = Math.min(WORLD_W, bounds.maxX + paddingX);
+  const paddedBottom = Math.min(WORLD_H, bounds.maxY + paddingY);
+  const desiredWidth = Math.max(380, paddedRight - paddedLeft);
+  const desiredHeight = Math.max(300, paddedBottom - paddedTop);
+  const centerX = (paddedLeft + paddedRight) / 2;
+  const centerY = (paddedTop + paddedBottom) / 2;
+  const width = Math.min(desiredWidth, WORLD_W);
+  const height = Math.min(desiredHeight, WORLD_H);
+  const wx = clamp(centerX - width / 2, 0, WORLD_W - width);
+  const wy = clamp(centerY - height / 2, 0, WORLD_H - height);
 
   return {
     id,
     label,
-    wx: clamp(centerX - diameter / 2, 0, WORLD_W - diameter),
-    wy: clamp(centerY - diameter / 2, 0, WORLD_H - diameter),
-    width: diameter,
-    height: diameter,
+    wx,
+    wy,
+    width,
+    height,
+    points: makeClusterBlobPoints(width, height, seed),
     rotate: 0,
     color: '#CBFF00',
   };
@@ -2006,6 +2029,14 @@ export default function Canvas() {
           0%, 100% { opacity: .4; box-shadow: 0 0 0 0 rgba(255,0,92,.42); }
           50% { opacity: 1; box-shadow: 0 0 0 8px rgba(255,0,92,0); }
         }
+        @keyframes planOverlayIn {
+          from { opacity: 0; transform: scale(.98); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes planProgressFlow {
+          from { transform: translateX(-52%); }
+          to { transform: translateX(152%); }
+        }
         .combine-skeleton-card {
           animation: combineSkeletonAppear .25s ease-out both, combineSkeletonPulse 1.8s ease-in-out .25s infinite;
         }
@@ -2036,6 +2067,17 @@ export default function Canvas() {
           height: 7px;
           border-radius: 50%;
           flex-shrink: 0;
+        }
+        .plan-progress-bar::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          width: 46%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, rgba(203,255,0,0), rgba(203,255,0,.95), rgba(203,255,0,0));
+          animation: planProgressFlow 1.15s ease-in-out infinite;
         }
         .zoom-slider {
           -webkit-appearance: none;
@@ -2261,6 +2303,13 @@ export default function Canvas() {
                 </div>
               );
             }
+            const points = Array.isArray(area.points) && area.points.length
+              ? area.points
+              : makeClusterBlobPoints(area.width, area.height, String(area.id || '').length);
+            const pointText = points.map(point => `${point.x},${point.y}`).join(' ');
+            const labelFontSize = Math.round(clamp(13 / Math.max(scale, 0.35), 10, 20));
+            const labelTop = clamp(18 / Math.max(scale, 0.35), 12, 34);
+            const strokeWidth = clamp(1.5 / Math.max(scale, 0.35), 1.1, 3.2);
             return (
               <div
                 key={area.id}
@@ -2270,29 +2319,46 @@ export default function Canvas() {
                   top: area.wy,
                   width: area.width,
                   height: area.height,
-                  borderRadius: '50%',
-                  border: `1.5px dashed ${isWhitespace ? 'rgba(255,0,92,0.9)' : 'rgba(203,255,0,0.78)'}`,
-                  background: isWhitespace ? 'rgba(255,0,92,0.07)' : 'rgba(203,255,0,0.032)',
-                  boxShadow: isWhitespace
-                    ? '0 0 42px rgba(255,0,92,0.16), inset 0 0 80px rgba(255,0,92,0.06)'
-                    : '0 0 30px rgba(203,255,0,0.08), inset 0 0 62px rgba(203,255,0,0.034)',
-                  transform: `rotate(${area.rotate}deg)`,
-                  transformOrigin: '50% 50%',
                   pointerEvents: 'none',
                   zIndex: 1,
                   animation: 'analysisAreaRefresh .32s ease-out both',
+                  overflow: 'visible',
                 }}
               >
+                <svg
+                  width={area.width}
+                  height={area.height}
+                  viewBox={`0 0 ${area.width} ${area.height}`}
+                  preserveAspectRatio="none"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    overflow: 'visible',
+                    filter: 'drop-shadow(0 0 28px rgba(203,255,0,0.1))',
+                  }}
+                >
+                  <polygon
+                    points={pointText}
+                    fill="rgba(203,255,0,0.035)"
+                    stroke="rgba(203,255,0,0.78)"
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={`${Math.max(7, 9 / scale)} ${Math.max(7, 11 / scale)}`}
+                  />
+                </svg>
                 <div style={{
                   position: 'absolute',
                   left: '50%',
-                  top: 18,
-                  transform: `translateX(-50%) rotate(${-area.rotate}deg)`,
+                  top: labelTop,
+                  transform: 'translateX(-50%)',
                   color,
-                  fontSize: 13,
+                  fontSize: labelFontSize,
                   fontWeight: 800,
-                  letterSpacing: 1.2,
+                  letterSpacing: 0,
                   whiteSpace: 'nowrap',
+                  padding: '3px 8px',
+                  borderRadius: 999,
+                  background: 'rgba(13,13,13,0.72)',
+                  border: '1px solid rgba(203,255,0,0.25)',
                 }}>
                   {area.label}
                 </div>
@@ -2697,6 +2763,46 @@ export default function Canvas() {
               <div style={{ height: 7, borderRadius: 999, background: '#303030', overflow: 'hidden' }}>
                 <div style={{ width: `${axisRelayoutProgress}%`, height: '100%', borderRadius: 999, background: '#CBFF00', transition: 'width .18s ease-out' }} />
               </div>
+            </div>
+          </div>
+        )}
+        {(planGenerating || projectCompleting) && (
+          <div
+            data-overlay="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 92,
+              background: 'rgba(0,0,0,0.56)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'auto',
+              animation: 'planOverlayIn .22s ease-out both',
+            }}
+          >
+            <div style={{
+              width: 360,
+              maxWidth: 'calc(100vw - 48px)',
+              padding: '28px 30px',
+              borderRadius: 16,
+              background: 'rgba(18,18,18,0.92)',
+              border: '1px solid rgba(203,255,0,0.28)',
+              boxShadow: '0 28px 90px rgba(0,0,0,0.5), 0 0 42px rgba(203,255,0,0.12)',
+              textAlign: 'center',
+            }}>
+              <div style={{ color: '#CBFF00', fontSize: 12, fontWeight: 900, letterSpacing: 1.4, marginBottom: 10 }}>
+                {projectCompleting ? 'PROJECT COMPLETE' : 'FINAL PLAN'}
+              </div>
+              <div style={{ color: '#fff', fontSize: 21, fontWeight: 850, marginBottom: 10 }}>
+                {projectCompleting ? '프로젝트를 완료 처리하는 중' : '기획안을 생성하는 중'}
+              </div>
+              <div style={{ color: '#aaa', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
+                AI 응답과 저장이 끝나면 대시보드로 이동합니다.
+              </div>
+              <div className="plan-progress-bar" style={{ position: 'relative', height: 7, borderRadius: 999, background: '#2f3327', overflow: 'hidden' }} />
             </div>
           </div>
         )}

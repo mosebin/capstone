@@ -40,6 +40,7 @@ const EXHIBITION_COLLECTION = 'Exihibition';
 const UI_PROJECTS_COLLECTION = EXHIBITION_COLLECTION;
 const EXHIBITION_START_DATE_KST = '2026-09-18';
 const EXHIBITION_END_DATE_KST = '2026-09-20';
+const MAX_INLINE_IMAGE_LENGTH = 240000;
 
 setLogLevel('error');
 
@@ -99,25 +100,47 @@ function configured() {
 }
 
 function cleanForFirestore(value) {
-  if (Array.isArray(value)) return value.map(cleanForFirestore);
+  if (typeof value === 'string' && value.startsWith('data:image/') && value.length > MAX_INLINE_IMAGE_LENGTH) {
+    return undefined;
+  }
+  if (Array.isArray(value)) return value.map(cleanForFirestore).filter(entry => entry !== undefined);
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
-        .filter(([, entryValue]) => entryValue !== undefined)
-        .map(([key, entryValue]) => [key, cleanForFirestore(entryValue)]),
+        .map(([key, entryValue]) => [key, cleanForFirestore(entryValue)])
+        .filter(([, entryValue]) => entryValue !== undefined),
     );
   }
   return value;
 }
 
 function cleanIdeaForDatabase(idea = {}, index = 0) {
+  const detailPanel = idea.detailPanel || {};
+  const cleanList = value => (Array.isArray(value) ? value.map(item => String(item || '').trim()).filter(Boolean) : []);
+  const pros = cleanList(idea.pros || detailPanel.pros);
+  const cons = cleanList(idea.cons || detailPanel.cons);
+  const features = cleanList(idea.features || detailPanel.features);
+  const goals = cleanList(idea.goals || detailPanel.goals);
+  const description = String(idea.description || detailPanel.description || idea.desc || idea.summary || '').trim();
   return cleanForFirestore({
     id: idea.id ?? index + 1,
     title: String(idea.title || '').trim(),
-    desc: String(idea.desc || idea.description || idea.summary || '').trim(),
+    desc: String(idea.desc || description).trim(),
+    description,
     tag: String(idea.tag || '').trim(),
-    stars: 0,
+    stars: Number(idea.stars) === 1 ? 1 : 0,
     keywords: Array.isArray(idea.keywords) ? idea.keywords : [],
+    pros,
+    cons,
+    features,
+    goals,
+    detailPanel: {
+      description,
+      pros,
+      cons,
+      features,
+      goals,
+    },
   });
 }
 

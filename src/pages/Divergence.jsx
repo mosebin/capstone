@@ -280,11 +280,6 @@ export default function Divergence() {
             입력한 기준에 따라 {FIXED_IDEA_COUNT}개의 아이디어가 생성됩니다.<br />
             마음에 드는 아이디어를 고르고, 마음껏 편집하세요.
           </p>
-          {loading && (
-            <p style={{ color: '#CBFF00', fontSize: 13, fontWeight: 700, margin: '10px 0 0' }}>
-              아이디어 생성 중... 생성되는 대로 카드가 표시됩니다.
-            </p>
-          )}
           {generationError && (
             <p style={{ color: '#ff8a8a', fontSize: 13, fontWeight: 700, margin: '10px 0 0' }}>
               {generationError}

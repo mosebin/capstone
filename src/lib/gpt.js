@@ -149,8 +149,26 @@ const LEGACY_GENERATED_IDEAS_STORAGE_PREFIX = 'neo-node-project-ideas';
 const LEGACY_CANVAS_WORKSPACE_STORAGE_PREFIX = 'neo-node-project-workspace';
 const LOCAL_FALLBACK_DESC_PATTERN = /빠르게 검증하는 서비스 아이디어입니다|사용자 맥락에 맞춰 빠르게 검증/;
 const NUMERIC_FALLBACK_TITLE_PATTERN = /(확장안|아이디어|대안)\s*\d+$/;
+const MAX_LOCAL_INLINE_IMAGE_LENGTH = 240000;
 
 const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage);
+
+function stripLargeInlineImages(value) {
+  if (typeof value === 'string' && value.startsWith('data:image/') && value.length > MAX_LOCAL_INLINE_IMAGE_LENGTH) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    return value.map(stripLargeInlineImages).filter(entry => entry !== undefined);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, entryValue]) => [key, stripLargeInlineImages(entryValue)])
+        .filter(([, entryValue]) => entryValue !== undefined),
+    );
+  }
+  return value;
+}
 
 function readLocalJson(key, fallback = null) {
   if (!canUseLocalStorage()) return fallback;
@@ -165,10 +183,16 @@ function readLocalJson(key, fallback = null) {
 
 function writeLocalJson(key, value) {
   if (!canUseLocalStorage()) return;
+  const json = JSON.stringify(stripLargeInlineImages(value));
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(key, json);
   } catch (error) {
-    console.warn(`Failed to write ${key} to localStorage`, error);
+    try {
+      window.localStorage.removeItem(key);
+      window.localStorage.setItem(key, json);
+    } catch (retryError) {
+      console.warn(`Failed to write ${key} to localStorage`, retryError);
+    }
   }
 }
 

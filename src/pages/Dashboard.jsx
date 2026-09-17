@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProjectContext, loadCanvasWorkspace, loadGeneratedIdeas, requestFinalPlan, toCanvasIdeas } from '../lib/gpt';
 import { downloadTextFile, makeFinalPlanText, safeFinalPlanFileName } from '../lib/finalPlan';
+import { readIdeaDetailCache } from '../lib/ideaDetailCache';
 
 async function readCanvasReport() {
   const [workspace, generated] = await Promise.all([
@@ -46,6 +47,62 @@ function keywordCounts(ideas) {
     });
   });
   return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+}
+
+const DETAIL_SECTIONS = [
+  { key: 'pros', label: '장점', color: '#79d986' },
+  { key: 'cons', label: '단점', color: '#ff8c8c' },
+  { key: 'features', label: '서비스 상세 기능', color: '#ddd' },
+  { key: 'goals', label: '서비스 목표', color: '#CBFF00' },
+];
+
+function getIdeaDetailForDashboard(idea) {
+  const cached = readIdeaDetailCache(getProjectContext(), idea) || {};
+  const panel = idea?.detailPanel || {};
+  const getList = (field) => {
+    if (Array.isArray(cached[field])) return cached[field];
+    if (Array.isArray(panel[field])) return panel[field];
+    if (Array.isArray(idea?.[field])) return idea[field];
+    return [];
+  };
+  return {
+    description: cached.description || panel.description || idea?.description || idea?.desc || idea?.summary || '',
+    pros: getList('pros'),
+    cons: getList('cons'),
+    features: getList('features'),
+    goals: getList('goals'),
+  };
+}
+
+function DetailListPreview({ detail }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <p style={{ margin: 0, color: '#bbb', fontSize: 13, lineHeight: 1.75 }}>
+        {detail.description || '작성된 설명이 없습니다.'}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+        {DETAIL_SECTIONS.map(section => {
+          const items = detail[section.key] || [];
+          return (
+            <div key={section.key} style={{ minWidth: 0 }}>
+              <div style={{ color: section.color, fontSize: 12, fontWeight: 800, marginBottom: 8 }}>{section.label}</div>
+              {items.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {items.map((item, index) => (
+                    <div key={`${section.key}-${index}`} style={{ color: '#aaa', fontSize: 12, lineHeight: 1.55, padding: '8px 10px', background: '#181818', border: '1px solid #2a2a2a', borderRadius: 7 }}>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ color: '#555', fontSize: 12, padding: '8px 0' }}>아직 작성된 내용이 없습니다.</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -162,7 +219,7 @@ export default function Dashboard() {
             </div>
             {expandedRow === index && (
               <div style={{ padding: '14px 24px 18px', color: '#aaa', fontSize: 13, lineHeight: 1.7, borderBottom: '1px solid #202020' }}>
-                {idea.desc || idea.summary}
+                <DetailListPreview detail={getIdeaDetailForDashboard(idea)} />
               </div>
             )}
           </div>
