@@ -19,6 +19,7 @@ function getActiveStep(pathname) {
 export default function Navbar() {
   const location = useLocation();
   const activeStep = getActiveStep(location.pathname);
+  const showProgress = location.pathname !== '/';
   const [hoveredAction, setHoveredAction] = useState(null);
   const goHome = () => {
     clearActiveProjectSession();
@@ -49,58 +50,60 @@ export default function Navbar() {
         </NavLink>
 
         {/* Progress steps — absolutely centered */}
-        <div style={{
-          position: 'absolute',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          display: 'flex',
-          alignItems: 'center',
-        }}>
-          {STEPS.map((step, idx) => {
-            const isActive = step.num === activeStep;
-            const isPast   = step.num < activeStep;
-            const isLast   = idx === STEPS.length - 1;
-            const to = step.path ?? step.paths[0];
+        {showProgress && (
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            alignItems: 'center',
+          }}>
+            {STEPS.map((step, idx) => {
+              const isActive = step.num === activeStep;
+              const isPast   = step.num < activeStep;
+              const isLast   = idx === STEPS.length - 1;
+              const to = step.path ?? step.paths[0];
 
-            return (
-              <div key={step.num} style={{ display: 'flex', alignItems: 'center' }}>
-                <NavLink
-                  to={to}
-                  onClick={step.num === 1 ? goHome : undefined}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-                >
-                  <div style={{
-                    width: 34, height: 34, borderRadius: '50%',
-                    background: isActive ? '#CBFF00' : 'transparent',
-                    border: isActive ? 'none' : isPast ? '2px solid #CBFF00' : '2px solid #444',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700,
-                    color: isActive ? '#111' : isPast ? '#CBFF00' : '#555',
-                    transition: 'all .2s',
-                  }}>
-                    {step.num}
-                  </div>
-                  <div style={{ textAlign: 'center', lineHeight: 1.12 }}>
-                    <div style={{ fontSize: 9, fontWeight: 850, letterSpacing: 0.8, color: isActive ? '#CBFF00' : isPast ? '#CBFF00' : '#555', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
-                      {step.eyebrow}
+              return (
+                <div key={step.num} style={{ display: 'flex', alignItems: 'center' }}>
+                  <NavLink
+                    to={to}
+                    onClick={step.num === 1 ? goHome : undefined}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                  >
+                    <div style={{
+                      width: 34, height: 34, borderRadius: '50%',
+                      background: isActive ? '#CBFF00' : 'transparent',
+                      border: isActive ? 'none' : isPast ? '2px solid #CBFF00' : '2px solid #444',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, fontWeight: 700,
+                      color: isActive ? '#111' : isPast ? '#CBFF00' : '#555',
+                      transition: 'all .2s',
+                    }}>
+                      {step.num}
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, color: isActive ? '#CBFF00' : isPast ? '#CBFF00' : '#555', whiteSpace: 'nowrap' }}>
-                      {step.label}
+                    <div style={{ textAlign: 'center', lineHeight: 1.12 }}>
+                      <div style={{ fontSize: 9, fontWeight: 850, letterSpacing: 0.8, color: isActive ? '#CBFF00' : isPast ? '#CBFF00' : '#555', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+                        {step.eyebrow}
+                      </div>
+                      <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, color: isActive ? '#CBFF00' : isPast ? '#CBFF00' : '#555', whiteSpace: 'nowrap' }}>
+                        {step.label}
+                      </div>
                     </div>
-                  </div>
-                </NavLink>
-                {!isLast && (
-                  <div style={{
-                    width: 96, height: 1.5,
-                    background: step.num < activeStep ? '#CBFF00' : '#333',
-                    marginBottom: 34, transition: 'background .2s',
-                  }} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  </NavLink>
+                  {!isLast && (
+                    <div style={{
+                      width: 96, height: 1.5,
+                      background: step.num < activeStep ? '#CBFF00' : '#333',
+                      marginBottom: 34, transition: 'background .2s',
+                    }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Right actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
